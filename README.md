@@ -1,61 +1,75 @@
-AgentForge – Framework für KI-Agenten & Automatisierung
-AgentForge ist ein modulares Python-Framework, das zeigt, wie sich einfache KI-Agenten, Datenanbindungen und Automatisierungsbausteine zu einer wiederverwendbaren Pipeline kombinieren lassen. Es entstand, um praktische Erfahrung in den Bereichen zu vertiefen, die für moderne Softwareentwicklung mit generativer KI relevant sind: LLM-Integration, API-Konnektoren, Datenaufbereitung, Testautomatisierung und Monitoring.
+# AgentForge
 
-Architektur
-                       ┌────────────────────┐
-                       │      Pipeline       │
-                       │   (orchestrator.py) │
-                       └─────────┬──────────┘
-                                 │ AgentContext
-        ┌────────────────────────┼────────────────────────┐
-        │                        │                         │
-┌───────▼────────┐     ┌─────────▼─────────┐     ┌─────────▼─────────┐
-│ DocumentationAgent│  │ DataCleaningAgent  │     │  MonitoringAgent   │
-│  (LLM-gestützt)  │   │  (pandas-basiert)  │     │ (Connector-Health) │
-└───────┬────────┘     └─────────┬─────────┘     └─────────┬─────────┘
-        │                        │                         │
-┌───────▼────────┐     ┌─────────▼─────────┐     ┌─────────▼─────────┐
-│ providers.py    │     │ data/cleaning.py   │     │ connectors/*.py    │
-│ (OpenAI, Claude) │    │  (pandas)          │     │ (Filesystem, REST) │
-└─────────────────┘     └────────────────────┘     └────────────────────┘
-Jeder Agent erbt von BaseAgent und implementiert run(context). Die Pipeline-Klasse verkettet beliebig viele Agents und reicht einen gemeinsamen AgentContext (ein einfaches Dict-Wrapper-Objekt) durch alle Stufen weiter – inklusive strukturiertem JSON-Logging pro Schritt.
+**Ein kleines Python-Framework, mit dem sich KI-Agenten und Automatisierungsschritte zu einer eigenen Pipeline zusammenstecken lassen.**
 
-Module im Überblick
-Modul	Zweck
-providers.py	Einheitliche Schnittstelle zu OpenAI- und Claude-API
-codeanalysis.py	Statische Analyse von Python-Code (ast) – findet Funktionen ohne Docstring
-connectors/filesystem.py	Lesen/Schreiben lokaler Dateien über eine einheitliche Connector-Schnittstelle
-connectors/rest_api.py	Generischer REST-Konnektor (Bearer-Token), kompatibel mit Graph-artigen APIs
-data/cleaning.py	Datenaufbereitung mit pandas: Duplikate, fehlende Werte, Ausreißer
-agents/doc_agent.py	Agent: generiert Docstring-/Test-Vorschläge per LLM
-agents/data_agent.py	Agent: bereinigt einen DataFrame über eine Standardpipeline
-agents/monitor_agent.py	Agent: prüft den Health-Status konfigurierter Konnektoren
-orchestrator.py	Pipeline-Klasse zum Verketten mehrerer Agents
-logging_utils.py	Strukturiertes JSON-Logging (Datei + Konsole)
-cli.py	Kommandozeilen-Interface mit den Subkommandos doc-scan, clean-data, monitor
-Installation
+![Python](https://img.shields.io/badge/Python-3.x-blue) ![Tests](https://img.shields.io/badge/Tests-pytest-green) ![Lizenz](https://img.shields.io/badge/Lizenz-MIT-lightgrey)
+
+---
+
+## Worum geht es?
+
+Viele Aufgaben in der Softwareentwicklung wiederholen sich: Code dokumentieren, Daten aufräumen, prüfen, ob Schnittstellen noch erreichbar sind. AgentForge zerlegt solche Aufgaben in kleine **Agents**. Jeder Agent erledigt genau eine Aufgabe. Eine **Pipeline** verbindet mehrere Agents zu einem Ablauf und gibt die Ergebnisse von Schritt zu Schritt weiter.
+
+Das Projekt ist als kleines, aber vollständiges Framework gebaut und nicht als einzelnes Skript. Es zeigt, wie man KI-Modelle (OpenAI und Claude), Daten und Automatisierung sauber voneinander trennt und testbar macht.
+
+## Was kann AgentForge?
+
+Zurzeit gibt es drei fertige Agents:
+
+- **Dokumentations-Agent:** Durchsucht ein Python-Projekt nach Funktionen ohne Docstring und lässt ein Sprachmodell (OpenAI oder Claude) Vorschläge für Dokumentation und Tests schreiben.
+- **Daten-Agent:** Bereinigt eine CSV-Datei. Er entfernt Duplikate, füllt fehlende Werte auf (zum Beispiel mit dem Median) und erkennt Ausreißer.
+- **Monitoring-Agent:** Prüft, ob angebundene Datenquellen (lokale Ordner oder REST-APIs) erreichbar sind.
+
+Du kannst sie einzeln über die Kommandozeile nutzen oder in Python zu einer eigenen Pipeline verketten.
+
+## So funktioniert es
+
+1. Jeder Agent erbt von `BaseAgent` und hat eine Methode `run(context)`.
+2. Die `Pipeline` führt die Agents nacheinander aus.
+3. Alle Agents teilen sich einen gemeinsamen `AgentContext`, in dem Zwischenergebnisse liegen.
+4. Jeder Schritt wird als JSON-Log in einer Datei und in der Konsole festgehalten.
+
+Die KI-Modelle (OpenAI, Claude) und die Datenquellen (Dateisystem, REST-API) sind über einheitliche Schnittstellen angebunden. Dadurch lassen sie sich austauschen, ohne die Agents zu ändern.
+
+## Schnellstart
+
+```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
-cp .env.example .env   # API-Key(s) eintragen
-Nutzung (CLI)
-Undokumentierten Code finden und Vorschläge generieren:
+cp .env.example .env    # hier deine API-Schlüssel eintragen
+```
 
+### Beispiele für die Kommandozeile
+
+Nicht dokumentierten Code finden und Vorschläge erzeugen:
+
+```bash
 agentforge doc-scan ./mein_projekt --provider openai --output report.md
 agentforge doc-scan ./mein_projekt --provider claude --limit 5
-CSV-Datei bereinigen (Duplikate entfernen, fehlende Werte auffüllen):
+```
 
+CSV-Datei bereinigen:
+
+```bash
 agentforge clean-data rohdaten.csv bereinigt.csv --dedupe id,email --fill-strategy median
-Konnektoren überwachen:
+```
 
+Datenquellen überwachen:
+
+```bash
 agentforge monitor --connector local=./data --connector backup=./backup
-Nutzung (als Bibliothek – eigene Pipeline bauen)
+```
+
+### Eigene Pipeline in Python
+
+```python
+import pandas as pd
 from agentforge.orchestrator import Pipeline
 from agentforge.agents.data_agent import DataCleaningAgent
 from agentforge.agents.monitor_agent import MonitoringAgent
 from agentforge.connectors.filesystem import FileSystemConnector
-import pandas as pd
 
 pipeline = Pipeline(agents=[
     DataCleaningAgent(dedupe_subset=["id"], fill_strategy="median"),
@@ -65,37 +79,45 @@ pipeline = Pipeline(agents=[
 result = pipeline.run(initial_data={"raw_dataframe": pd.read_csv("input.csv")})
 print(result.data["cleaned_dataframe"].head())
 print(result.data["monitoring"])
-Tests
-Alle Module sind mit pytest getestet – LLM-Aufrufe und REST-Requests werden konsequent gemockt, sodass die komplette Suite ohne echte API-Keys und ohne Netzwerkzugriff läuft:
+```
 
+## Projektaufbau
+
+```
+agentforge/
+├── agents/            # die drei Agents (Doku, Daten, Monitoring)
+├── connectors/        # Anbindung an Dateisystem und REST-APIs
+├── data/              # Datenbereinigung mit pandas
+├── providers.py       # gemeinsame Schnittstelle zu OpenAI und Claude
+├── codeanalysis.py    # findet Funktionen ohne Docstring
+├── orchestrator.py    # die Pipeline
+├── logging_utils.py   # strukturiertes JSON-Logging
+└── cli.py             # Kommandozeile
+```
+
+## Tests
+
+Alle Module sind mit `pytest` getestet. Aufrufe an KI-Modelle und REST-APIs werden dabei ersetzt (gemockt). Die Tests laufen deshalb ohne API-Schlüssel und ohne Internet:
+
+```bash
 pytest -v
-Abgedeckt sind: Codeanalyse, Provider-Fehlerbehandlung, beide Konnektoren, Datenbereinigung, alle drei Agents, die Pipeline-Reihenfolge sowie das strukturierte Logging.
+```
 
-Motivation & Ausblick
-Das Projekt ist bewusst als kleines, aber vollständiges Framework aufgebaut statt als einzelnes Skript: Es zeigt Trennung von Verantwortlichkeiten (Provider / Connector / Agent / Pipeline), Testautomatisierung und strukturiertes Logging – Bausteine, die in größeren KI-Automatisierungsprojekten in ähnlicher Form vorkommen.
+## Warum dieses Projekt?
 
-Mögliche Erweiterungen: Azure-Konnektor (analog zu rest_api.py), MCP-Konnektor für Agent-Tool-Aufrufe, YAML-basierte Pipeline-Konfiguration, Retry-/Backoff-Logik für die API-Provider.
+Ich wollte praktische Erfahrung mit dem sammeln, was moderne Softwareentwicklung mit generativer KI ausmacht: Anbindung von Sprachmodellen, Datenaufbereitung, Automatisierung, Tests und Logging. AgentForge zeigt dabei eine klare Trennung der Verantwortlichkeiten (Provider, Connector, Agent, Pipeline) und die Bausteine, die in größeren KI-Projekten ähnlich vorkommen.
 
-Lizenz
-MIT – siehe LICENSE.
-MIT License
+## Mögliche Erweiterungen
 
-Copyright (c) 2026 Meupehou Moutcheu Ulrich Varnel
+- Azure-Konnektor, analog zum REST-Konnektor
+- MCP-Konnektor, damit Agents externe Werkzeuge aufrufen können
+- Pipelines per YAML-Datei konfigurieren
+- Wiederholungsversuche (Retry und Backoff) bei Fehlern der KI-Anbieter
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## Lizenz
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+MIT. Details stehen in der Datei [LICENSE](LICENSE).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+## Autor
+
+**Ulrich Varnel Meupehou Moutcheu**, Student der Medieninformatik an der Hochschule Osnabrück. Weitere Projekte findest du auf meinem GitHub-Profil: [github.com/Meupehou2001](https://github.com/Meupehou2001)
